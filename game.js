@@ -161,17 +161,17 @@ function createWorld() {
 }
 
 function createSkyElements() {
-  // Create starfield
+  // Create starfield - increased count and visibility
   const starGeometry = new THREE.BufferGeometry();
   const starMaterial = new THREE.PointsMaterial({
     color: 0xffffff,
-    size: 0.5,
+    size: 1.2,
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.9,
   });
 
   const starVertices = [];
-  for (let i = 0; i < 1000; i++) {
+  for (let i = 0; i < 3000; i++) {
     const x = (Math.random() - 0.5) * 2000;
     const y = Math.random() * 1000 + 100;
     const z = (Math.random() - 0.5) * 2000;
@@ -185,59 +185,71 @@ function createSkyElements() {
   const stars = new THREE.Points(starGeometry, starMaterial);
   scene.add(stars);
 
-  // Create moving black hole
-  const blackHoleGeometry = new THREE.SphereGeometry(8, 32, 32);
-  const blackHoleMaterial = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: 0.9,
-  });
-  const blackHole = new THREE.Mesh(blackHoleGeometry, blackHoleMaterial);
-  blackHole.position.set(50, 80, -100);
-  scene.add(blackHole);
+  // Create multiple black holes for more dramatic effect
+  const blackHoles = [];
+  for (let i = 0; i < 3; i++) {
+    const blackHoleGeometry = new THREE.SphereGeometry(12, 32, 32);
+    const blackHoleMaterial = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0.95,
+    });
+    const blackHole = new THREE.Mesh(blackHoleGeometry, blackHoleMaterial);
+    blackHole.position.set(
+      (Math.random() - 0.5) * 200 + 100,
+      Math.random() * 50 + 80,
+      (Math.random() - 0.5) * 200 - 100
+    );
+    blackHoles.push(blackHole);
+    scene.add(blackHole);
 
-  // Create accretion disk around black hole
-  const diskGeometry = new THREE.RingGeometry(10, 20, 32);
-  const diskMaterial = new THREE.MeshBasicMaterial({
-    color: 0xff3366,
-    transparent: true,
-    opacity: 0.6,
-    side: THREE.DoubleSide,
-  });
-  const accretionDisk = new THREE.Mesh(diskGeometry, diskMaterial);
-  accretionDisk.position.copy(blackHole.position);
-  accretionDisk.rotation.x = Math.PI / 2;
-  scene.add(accretionDisk);
+    // Create accretion disk around each black hole
+    const diskGeometry = new THREE.RingGeometry(15, 25, 32);
+    const diskColors = [0xff3366, 0x3366ff, 0x66ff33];
+    const diskMaterial = new THREE.MeshBasicMaterial({
+      color: diskColors[i],
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide,
+    });
+    const accretionDisk = new THREE.Mesh(diskGeometry, diskMaterial);
+    accretionDisk.position.copy(blackHole.position);
+    accretionDisk.rotation.x = Math.PI / 2;
+    scene.add(accretionDisk);
+  }
 
-  // Create planets
-  const planetColors = [0x66ffff, 0xff6666, 0xffff66, 0x66ff66];
-  for (let i = 0; i < 4; i++) {
+  // Create more planets with better visibility
+  const planetColors = [
+    0x66ffff, 0xff6666, 0xffff66, 0x66ff66, 0xff66ff, 0xffaa33, 0x33aaff,
+    0xaa33ff,
+  ];
+  for (let i = 0; i < 8; i++) {
     const planetGeometry = new THREE.SphereGeometry(
-      Math.random() * 3 + 2,
-      16,
-      16
+      Math.random() * 5 + 3,
+      20,
+      20
     );
     const planetMaterial = new THREE.MeshBasicMaterial({
       color: planetColors[i],
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.9,
     });
     const planet = new THREE.Mesh(planetGeometry, planetMaterial);
 
     planet.position.set(
-      (Math.random() - 0.5) * 300,
-      Math.random() * 100 + 50,
-      (Math.random() - 0.5) * 300
+      (Math.random() - 0.5) * 400,
+      Math.random() * 150 + 60,
+      (Math.random() - 0.5) * 400
     );
 
     scene.add(planet);
   }
 
-  // Create nebula clouds
-  for (let i = 0; i < 5; i++) {
-    const cloudGeometry = new THREE.SphereGeometry(15, 8, 8);
+  // Create more vibrant nebula clouds
+  for (let i = 0; i < 12; i++) {
+    const cloudGeometry = new THREE.SphereGeometry(20, 12, 12);
     const cloudMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color().setHSL(Math.random(), 0.8, 0.3),
+      color: new THREE.Color().setHSL(Math.random(), 0.9, 0.5),
       transparent: true,
       opacity: 0.2,
     });
@@ -252,10 +264,30 @@ function createSkyElements() {
     scene.add(cloud);
   }
 
+  // Add floating asteroids for more detail
+  for (let i = 0; i < 15; i++) {
+    const asteroidGeometry = new THREE.DodecahedronGeometry(
+      Math.random() * 2 + 1
+    );
+    const asteroidMaterial = new THREE.MeshBasicMaterial({
+      color: 0x666666,
+      transparent: true,
+      opacity: 0.8,
+    });
+    const asteroid = new THREE.Mesh(asteroidGeometry, asteroidMaterial);
+
+    asteroid.position.set(
+      (Math.random() - 0.5) * 300,
+      Math.random() * 100 + 40,
+      (Math.random() - 0.5) * 300
+    );
+
+    scene.add(asteroid);
+  }
+
   // Store references for animation
   window.skyElements = {
-    blackHole: blackHole,
-    accretionDisk: accretionDisk,
+    blackHoles: blackHoles,
     stars: stars,
   };
 }
@@ -946,16 +978,17 @@ function updateAnimations() {
 
   // Animate sky elements
   if (window.skyElements) {
-    // Rotate black hole
-    window.skyElements.blackHole.rotation.y += 0.005;
-    window.skyElements.blackHole.rotation.x += 0.002;
+    // Rotate multiple black holes
+    if (window.skyElements.blackHoles) {
+      window.skyElements.blackHoles.forEach((blackHole, index) => {
+        blackHole.rotation.y += 0.005 + index * 0.001;
+        blackHole.rotation.x += 0.002 + index * 0.0005;
+      });
+    }
 
-    // Rotate accretion disk
-    window.skyElements.accretionDisk.rotation.z += 0.01;
-
-    // Make stars twinkle
-    window.skyElements.stars.rotation.y += 0.0005;
-    window.skyElements.stars.material.opacity = 0.6 + Math.sin(time * 2) * 0.2;
+    // Make stars twinkle more dramatically
+    window.skyElements.stars.rotation.y += 0.0008;
+    window.skyElements.stars.material.opacity = 0.7 + Math.sin(time * 3) * 0.3;
   }
 
   // Animate cards (same animation for all cards)
