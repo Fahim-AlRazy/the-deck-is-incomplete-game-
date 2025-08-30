@@ -340,6 +340,8 @@ function createCards() {
     // Card number
     ctx.fillStyle = "#000000";
     ctx.font = "bold 30px Arial";
+    ctx.textAlign = "center"; // Add text alignment
+    ctx.textBaseline = "middle"; // Add text baseline
     ctx.fillText(
       i === 1
         ? "A"
@@ -350,8 +352,8 @@ function createCards() {
         : i === 13
         ? "K"
         : i.toString(),
-      64,
-      100
+      64, // X position (center of 128px canvas)
+      90 // Y position (adjusted for better vertical centering)
     );
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -407,6 +409,8 @@ function createJokerTrapCards() {
     const randomValue = Math.floor(Math.random() * 13) + 1;
     frontCtx.fillStyle = "#000000";
     frontCtx.font = "bold 30px Arial";
+    frontCtx.textAlign = "center"; // Add text alignment
+    frontCtx.textBaseline = "middle"; // Add text baseline
     frontCtx.fillText(
       randomValue === 1
         ? "A"
@@ -417,8 +421,8 @@ function createJokerTrapCards() {
         : randomValue === 13
         ? "K"
         : randomValue.toString(),
-      64,
-      100
+      64, // X position (center of 128px canvas)
+      90 // Y position (adjusted for better vertical centering)
     );
 
     // Create back side with joker (for the flip animation)
@@ -1415,7 +1419,7 @@ function updateAnimations() {
   // Animate cards (same animation for all cards)
   [...cards, ...skillCards, ...jokerCards].forEach((card, index) => {
     if (!card.userData.collected) {
-      card.rotation.y += 0.02;
+      card.rotation.y += 0.02; // Card rotation speed
       card.position.y += Math.sin(time * 2 + index) * 0.01;
     }
   });
