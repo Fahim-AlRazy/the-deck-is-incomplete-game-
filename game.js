@@ -33,6 +33,9 @@ let jokerCards = [];
 let obstacles = [];
 let lights = [];
 let particles = [];
+let kingOfSpades = null;
+let bullets = [];
+let lastShotTime = 0;
 
 // Required skills for BUCC
 const requiredSkills = [
@@ -86,6 +89,7 @@ function init() {
   createCards();
   createJokerTrapCards();
   createSkillCards();
+  createKingOfSpades();
   createLighting();
   createParticles();
 
@@ -526,6 +530,120 @@ function createSkillCards() {
   });
 }
 
+function createKingOfSpades() {
+  // Create the King of Spades enemy - more spade-themed
+  const kingGeometry = new THREE.BoxGeometry(1.5, 3, 1);
+  const kingMaterial = new THREE.MeshLambertMaterial({
+    color: 0x000000, // Black like spades
+    emissive: 0x111111,
+  });
+
+  kingOfSpades = new THREE.Mesh(kingGeometry, kingMaterial);
+  kingOfSpades.position.set(
+    (Math.random() - 0.5) * 60,
+    1.5,
+    (Math.random() - 0.5) * 60
+  );
+
+  // Create spade symbol on head using canvas texture
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+
+  // Draw spade symbol
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.fillStyle = "#000000";
+  ctx.font = "bold 180px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("♠", 128, 128);
+
+  const spadeTexture = new THREE.CanvasTexture(canvas);
+
+  // Create spade head marker
+  const spadeGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+  const spadeMaterial = new THREE.MeshBasicMaterial({
+    map: spadeTexture,
+    transparent: true,
+    side: THREE.DoubleSide,
+  });
+  const spadeHead = new THREE.Mesh(spadeGeometry, spadeMaterial);
+  spadeHead.position.y = 2.2;
+  spadeHead.rotation.x = -Math.PI / 6; // Slight tilt to be visible
+  kingOfSpades.add(spadeHead);
+
+  // Add royal crown with spade theme
+  const crownGeometry = new THREE.ConeGeometry(0.8, 1, 6);
+  const crownMaterial = new THREE.MeshBasicMaterial({
+    color: 0x444444, // Dark gray/black crown
+    emissive: 0x222222,
+  });
+  const crown = new THREE.Mesh(crownGeometry, crownMaterial);
+  crown.position.y = 3.2;
+  kingOfSpades.add(crown);
+
+  // Add spade decorations on crown
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    const spadeDecor = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.3, 0.3),
+      new THREE.MeshBasicMaterial({
+        map: spadeTexture,
+        transparent: true,
+        side: THREE.DoubleSide,
+      })
+    );
+    spadeDecor.position.set(Math.cos(angle) * 0.6, 3.8, Math.sin(angle) * 0.6);
+    spadeDecor.lookAt(camera.position);
+    kingOfSpades.add(spadeDecor);
+  }
+
+  // Add machine gun with spade theme
+  const gunGeometry = new THREE.BoxGeometry(0.3, 0.2, 1.5);
+  const gunMaterial = new THREE.MeshLambertMaterial({
+    color: 0x222222, // Darker gun
+  });
+  const gun = new THREE.Mesh(gunGeometry, gunMaterial);
+  gun.position.set(0.5, 0.5, 0);
+  kingOfSpades.add(gun);
+
+  // Add spade symbol on chest
+  const chestSpade = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.8, 0.8),
+    new THREE.MeshBasicMaterial({
+      map: spadeTexture,
+      transparent: true,
+      side: THREE.DoubleSide,
+    })
+  );
+  chestSpade.position.set(0, 0.5, 0.51);
+  kingOfSpades.add(chestSpade);
+
+  // Add warning light (now black/red themed)
+  const lightGeometry = new THREE.SphereGeometry(0.2);
+  const lightMaterial = new THREE.MeshBasicMaterial({
+    color: 0x660000,
+    emissive: 0x660000,
+  });
+  const warningLight = new THREE.Mesh(lightGeometry, lightMaterial);
+  warningLight.position.y = 4.2;
+  kingOfSpades.add(warningLight);
+
+  // King properties
+  kingOfSpades.userData = {
+    health: 3,
+    speed: 0.03,
+    shootCooldown: 2000, // 2 seconds between shots
+    detectionRange: 30,
+    isAlive: true,
+    lastShot: 0,
+  };
+
+  scene.add(kingOfSpades);
+}
+
 function createLighting() {
   // Brighter ambient light for better card visibility
   const ambientLight = new THREE.AmbientLight(0x606060, 0.6);
@@ -778,10 +896,20 @@ function onMouseMove(event) {
 function onMouseClick(event) {
   if (!gameStarted || gameEnded) return;
 
-  // Raycast to detect card clicks
+  // Raycast to detect clicks
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
+  // Check if clicking on King of Spades first
+  if (kingOfSpades && kingOfSpades.userData.isAlive) {
+    const kingIntersects = raycaster.intersectObjects([kingOfSpades]);
+    if (kingIntersects.length > 0 && kingIntersects[0].distance < 15) {
+      shootAtKing();
+      return;
+    }
+  }
+
+  // Check for card clicks
   const allCards = [...cards, ...skillCards, ...jokerCards];
   const intersects = raycaster.intersectObjects(allCards);
 
@@ -795,6 +923,133 @@ function onMouseClick(event) {
       }
     }
   }
+}
+
+function shootAtKing() {
+  // Create player bullet
+  const bulletGeometry = new THREE.SphereGeometry(0.08);
+  const bulletMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00ff00,
+    emissive: 0x00ff00,
+  });
+
+  const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+  bullet.position.copy(camera.position);
+
+  // Get shooting direction from camera
+  const direction = new THREE.Vector3(0, 0, -1);
+  direction.applyQuaternion(camera.quaternion);
+  direction.multiplyScalar(0.5);
+
+  bullet.userData = {
+    velocity: direction,
+    life: 1.0,
+    isPlayerBullet: true,
+  };
+
+  bullets.push(bullet);
+  scene.add(bullet);
+
+  // Check if hit King of Spades
+  setTimeout(() => {
+    if (bullet.position.distanceTo(kingOfSpades.position) < 3) {
+      hitKingOfSpades();
+    }
+  }, 100);
+}
+
+function hitKingOfSpades() {
+  if (!kingOfSpades || !kingOfSpades.userData.isAlive) return;
+
+  kingOfSpades.userData.health--;
+
+  // Create hit effect
+  createExplosionEffect(kingOfSpades.position);
+
+  // Flash red when hit
+  kingOfSpades.material.color.setHex(0xff0000);
+  setTimeout(() => {
+    if (kingOfSpades.userData.isAlive) {
+      kingOfSpades.material.color.setHex(0x990000);
+    }
+  }, 200);
+
+  // Check if King is defeated
+  if (kingOfSpades.userData.health <= 0) {
+    defeatKingOfSpades();
+  }
+}
+
+function defeatKingOfSpades() {
+  kingOfSpades.userData.isAlive = false;
+
+  // Death animation
+  const originalY = kingOfSpades.position.y;
+  let fallSpeed = 0;
+
+  const fallAnimation = setInterval(() => {
+    fallSpeed += 0.01;
+    kingOfSpades.position.y -= fallSpeed;
+    kingOfSpades.rotation.x += 0.1;
+    kingOfSpades.rotation.z += 0.05;
+
+    if (kingOfSpades.position.y < -5) {
+      scene.remove(kingOfSpades);
+      clearInterval(fallAnimation);
+    }
+  }, 16);
+
+  // Create victory effect
+  createVictoryEffect(kingOfSpades.position);
+
+  // Show victory message
+  showMessage("KING OF SPADES DEFEATED!", 3000);
+}
+
+function createVictoryEffect(position) {
+  for (let i = 0; i < 20; i++) {
+    const particleGeometry = new THREE.SphereGeometry(0.1);
+    const particleMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      transparent: true,
+      opacity: 0.8,
+    });
+
+    const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+    particle.position.copy(position);
+
+    particle.userData = {
+      velocity: new THREE.Vector3(
+        (Math.random() - 0.5) * 0.3,
+        Math.random() * 0.2 + 0.1,
+        (Math.random() - 0.5) * 0.3
+      ),
+      life: 2.0,
+    };
+
+    scene.add(particle);
+  }
+}
+
+function showMessage(text, duration = 2000) {
+  const messageDiv = document.createElement("div");
+  messageDiv.style.position = "fixed";
+  messageDiv.style.top = "30%";
+  messageDiv.style.left = "50%";
+  messageDiv.style.transform = "translate(-50%, -50%)";
+  messageDiv.style.color = "#ffff00";
+  messageDiv.style.fontSize = "36px";
+  messageDiv.style.fontWeight = "bold";
+  messageDiv.style.textShadow = "2px 2px 4px rgba(0,0,0,0.8)";
+  messageDiv.style.zIndex = "1000";
+  messageDiv.style.pointerEvents = "none";
+  messageDiv.textContent = text;
+
+  document.body.appendChild(messageDiv);
+
+  setTimeout(() => {
+    document.body.removeChild(messageDiv);
+  }, duration);
 }
 
 function collectCard(card) {
@@ -973,6 +1228,172 @@ function updatePlayer() {
   camera.rotation.x = mouseY;
 }
 
+function updateKingOfSpades() {
+  if (
+    !gameStarted ||
+    gameEnded ||
+    !kingOfSpades ||
+    !kingOfSpades.userData.isAlive
+  )
+    return;
+
+  const currentTime = Date.now();
+  const playerPos = player.position;
+  const kingPos = kingOfSpades.position;
+
+  // Calculate distance to player
+  const distance = playerPos.distanceTo(kingPos);
+
+  // AI Behavior: Hunt the player
+  if (distance < kingOfSpades.userData.detectionRange) {
+    // Look at player
+    kingOfSpades.lookAt(playerPos);
+
+    // Move towards player
+    const direction = new THREE.Vector3()
+      .subVectors(playerPos, kingPos)
+      .normalize()
+      .multiplyScalar(kingOfSpades.userData.speed);
+
+    kingOfSpades.position.add(direction);
+
+    // Shoot at player
+    if (
+      currentTime - kingOfSpades.userData.lastShot >
+      kingOfSpades.userData.shootCooldown
+    ) {
+      shootAtPlayer();
+      kingOfSpades.userData.lastShot = currentTime;
+    }
+  }
+
+  // Update bullets
+  bullets.forEach((bullet, index) => {
+    bullet.position.add(bullet.userData.velocity);
+    bullet.userData.life -= 0.01;
+
+    if (bullet.userData.isPlayerBullet === true) {
+      // Player bullet - check collision with King
+      if (
+        kingOfSpades &&
+        kingOfSpades.userData.isAlive &&
+        bullet.position.distanceTo(kingOfSpades.position) < 2
+      ) {
+        hitKingOfSpades();
+        scene.remove(bullet);
+        bullets.splice(index, 1);
+        return;
+      }
+    } else if (
+      bullet.userData.isPlayerBullet === false ||
+      bullet.userData.isPlayerBullet === undefined
+    ) {
+      // King bullet - check collision with player
+      if (bullet.position.distanceTo(playerPos) < 3) {
+        // Increased collision range
+        // Player hit!
+        console.log("Player hit by King's bullet! Health:", player.health - 1); // Debug log
+        createExplosionEffect(bullet.position);
+        player.health -= 1;
+        updateHUD(); // Update the HUD to show health change
+        scene.remove(bullet);
+        bullets.splice(index, 1);
+
+        // Show damage indicator
+        showMessage("HIT! Health: " + player.health, 1000);
+
+        // Check if player died
+        if (player.health <= 0) {
+          endGame(false, "The King of Spades eliminated you!");
+          return;
+        }
+      }
+    }
+
+    // Remove old bullets
+    if (bullet.userData.life <= 0) {
+      scene.remove(bullet);
+      bullets.splice(index, 1);
+    }
+  });
+}
+
+function shootAtPlayer() {
+  const bulletGeometry = new THREE.SphereGeometry(0.15); // Slightly larger bullet
+  const bulletMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffff00,
+    emissive: 0xffff00,
+  });
+
+  const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+  bullet.position.copy(kingOfSpades.position);
+  bullet.position.y += 1; // Shoot from chest height
+
+  // Calculate direction to player
+  const direction = new THREE.Vector3()
+    .subVectors(player.position, kingOfSpades.position)
+    .normalize()
+    .multiplyScalar(0.4); // Increased bullet speed
+
+  bullet.userData = {
+    velocity: direction,
+    life: 2.0, // Longer bullet life
+    isPlayerBullet: false, // Explicitly mark as King's bullet
+  };
+
+  bullets.push(bullet);
+  scene.add(bullet);
+
+  // Muzzle flash effect
+  createMuzzleFlash();
+}
+
+function createMuzzleFlash() {
+  const flashGeometry = new THREE.SphereGeometry(0.5);
+  const flashMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffaa00,
+    transparent: true,
+    opacity: 0.8,
+  });
+
+  const flash = new THREE.Mesh(flashGeometry, flashMaterial);
+  flash.position.copy(kingOfSpades.position);
+  flash.position.y += 1;
+  flash.position.x += 0.5; // Gun position
+
+  scene.add(flash);
+
+  // Remove flash after brief moment
+  setTimeout(() => {
+    scene.remove(flash);
+  }, 100);
+}
+
+function createExplosionEffect(position) {
+  for (let i = 0; i < 10; i++) {
+    const particleGeometry = new THREE.SphereGeometry(0.05);
+    const particleMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff3300,
+      transparent: true,
+      opacity: 0.8,
+    });
+
+    const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+    particle.position.copy(position);
+
+    particle.userData = {
+      velocity: new THREE.Vector3(
+        (Math.random() - 0.5) * 0.2,
+        Math.random() * 0.1,
+        (Math.random() - 0.5) * 0.2
+      ),
+      life: 1.0,
+    };
+
+    scene.add(particle);
+  }
+}
+
 function updateAnimations() {
   const time = Date.now() * 0.001;
 
@@ -1039,6 +1460,7 @@ function animate() {
   requestAnimationFrame(animate);
 
   updatePlayer();
+  updateKingOfSpades();
   updateAnimations();
 
   renderer.render(scene, camera);
